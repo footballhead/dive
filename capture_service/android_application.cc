@@ -138,7 +138,7 @@ absl::Status AndroidApplication::Start()
 {
     RETURN_IF_ERROR(m_dev.Adb().Run("shell input keyevent KEYCODE_WAKEUP"));
     RETURN_IF_ERROR(m_dev.Adb().Run(
-    absl::StrFormat("shell am start -S -W %s %s/%s ", m_command_args, m_package, m_main_activity)));
+    absl::StrFormat("shell am start -S -W -n %s %s/%s -e arguments '\"--frame-count=120\"'", m_command_args, m_package, m_main_activity)));
     m_started = IsRunning();
     return absl::OkStatus();
 }
@@ -284,9 +284,9 @@ absl::Status AndroidApplication::GfxrSetup()
     RETURN_IF_ERROR(
     m_dev.Adb().Run("shell setprop debug.gfxrecon.capture_file " + capture_file_location));
 
-    RETURN_IF_ERROR(m_dev.Adb().Run("shell setprop debug.gfxrecon.capture_trigger_frames 1"));
+    // RETURN_IF_ERROR(m_dev.Adb().Run("shell setprop debug.gfxrecon.capture_trigger_frames 1"));
 
-    RETURN_IF_ERROR(m_dev.Adb().Run("shell setprop debug.gfxrecon.capture_use_asset_file true"));
+    // RETURN_IF_ERROR(m_dev.Adb().Run("shell setprop debug.gfxrecon.capture_use_asset_file true"));
 
     LOGD("GFXR capture setup for %s done\n", m_package.c_str());
     return absl::OkStatus();
@@ -327,6 +327,11 @@ absl::Status OpenXRApplication::Setup()
     if (m_gfxr_enabled)
     {
         RETURN_IF_ERROR(GfxrSetup());
+        RETURN_IF_ERROR(m_dev.Adb().Run(absl::StrFormat("shell mkdir -p %s", kManifestFilePath)));
+        RETURN_IF_ERROR(m_dev.Adb().Run(
+            absl::StrFormat("push %s %s",
+                            ResolveAndroidLibPath("XrLayer_gfxreconstruct.json", "").generic_string().c_str(),
+                            kManifestFilePath)));
     }
     else
     {
