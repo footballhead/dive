@@ -133,6 +133,11 @@ else()
             FILES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gfxreconstruct/android/tools/replay/build/outputs/apk/${CMAKE_BUILD_TYPE_LOWERCASE}/${GFXR_REPLAY_APK_NAME} 
             DESTINATION ${CMAKE_INSTALL_PREFIX}
             RENAME "gfxr-replay.apk")
+        # Use unstripped binaries for debugging
+        install(
+            FILES "third_party/gfxreconstruct/android/layer/build/intermediates/merged_native_libs/${CMAKE_BUILD_TYPE_LOWERCASE}/out/lib/arm64-v8a/libVkLayer_gfxreconstruct.so"
+            DESTINATION ${CMAKE_INSTALL_PREFIX}/gfxr_layer/jni/arm64-v8a
+        )
         message(CHECK_PASS "successful")
     endif()
 endif()
