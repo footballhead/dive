@@ -171,7 +171,7 @@ void android_main(struct android_app* app)
                                                       replay_options.block_index_to);
 
                 // GOOGLE: replace VulkanReplayConsumer with dive specific DiveVulkanReplayConsumer
-                gfxrecon::decode::DiveVulkanReplayConsumer vulkan_replay_consumer(application, replay_options);
+                gfxrecon::decode::DiveVulkanReplayConsumer vulkan_replay_consumer(application, filename, replay_options);
                 gfxrecon::decode::VulkanDecoder        vulkan_decoder;
 
                 // GOOGLE: Pass replay options to enable/disable gpu time

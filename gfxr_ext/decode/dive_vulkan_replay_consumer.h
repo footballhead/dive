@@ -23,6 +23,7 @@ limitations under the License.
 #include <set>
 #include <vector>
 #include <unordered_map>
+#include <string>
 
 GFXRECON_BEGIN_NAMESPACE(gfxrecon)
 GFXRECON_BEGIN_NAMESPACE(decode)
@@ -31,6 +32,7 @@ class DiveVulkanReplayConsumer : public VulkanReplayConsumer
 {
 public:
     DiveVulkanReplayConsumer(std::shared_ptr<application::Application> application,
+                             std::string                               gfxr_file_name,
                              const VulkanReplayOptions&                options);
 
     ~DiveVulkanReplayConsumer() override;
@@ -245,6 +247,8 @@ private:
     // This is a flag that indicates if the Setup Phase is finised or not for gfx Replay
     // The Setup Phase is done when StateEndMarker is triggered
     bool setup_finished_ = false;
+    // Filename of the .GFXR capture file that FileProcessor is reading.
+    std::string gfxr_file_name_;
 };
 
 GFXRECON_END_NAMESPACE(decode)

@@ -22,7 +22,12 @@ limitations under the License.
 #include <cmath>
 #include <numeric>
 #include <limits>
+#include <string>
+#include <utility>
 
+#include "capture_service/constants.h"
+#include "capture_service/remote_files.h"
+#include "dive_pm4_capture.h"
 #include "dive_renderdoc.h"
 #include "graphics/vulkan_struct_get_pnext.h"
 #include "util/logging.h"
@@ -32,10 +37,25 @@ limitations under the License.
 GFXRECON_BEGIN_NAMESPACE(gfxrecon)
 GFXRECON_BEGIN_NAMESPACE(decode)
 
+namespace
+{
+
+bool ShouldCreateRenderDocCapture()
+{
+    std::string property = util::platform::GetEnv(Dive::kReplayCreateRenderDocCapture);
+    // Be a little more generous with the values accepted to avoid frustrating or confusing the
+    // user.
+    return property == "true" || property == "1";
+}
+
+}  // namespace
+
 DiveVulkanReplayConsumer::DiveVulkanReplayConsumer(
 std::shared_ptr<application::Application> application,
+std::string                               gfxr_file_name,
 const VulkanReplayOptions&                options) :
-    VulkanReplayConsumer(application, options)
+    VulkanReplayConsumer(application, options),
+    gfxr_file_name_(std::move(gfxr_file_name))
 {
 }
 
@@ -718,6 +738,36 @@ void DiveVulkanReplayConsumer::ProcessStateEndMarker(uint64_t frame_number)
         GFXRECON_ASSERT((status == VK_NOT_READY) || (status == VK_SUCCESS));
         initial_status = (status == VK_SUCCESS) ? FenceStatus::kSignaled : FenceStatus::kUnsignaled;
     }
+
+#if defined(__ANDROID__)
+    if (DivePM4Capture::GetInstance().IsPM4CaptureEnabled())
+    {
+        DivePM4Capture::GetInstance().TryStartCapture();
+    }
+    // Tell other processes that replay has finished trim state loading.
+    // TODO: b/444647876 - Implementation that doesn't use global state (filesystem)
+    if (!std::ofstream(Dive::kReplayStateLoadedSignalFile))
+    {
+        GFXRECON_LOG_INFO("Failed to create a file signaling that trim state loading is "
+                          "complete. This will impact our ability to gather metrics.");
+    }
+#endif
+
+    if (ShouldCreateRenderDocCapture())
+    {
+        if (const RENDERDOC_API_1_0_0* renderdoc = GetRenderDocApi(); renderdoc != nullptr)
+        {
+            renderdoc->SetCaptureFilePathTemplate(
+            Dive::GetRenderDocCaptureFilePathTemplate(gfxr_file_name_).string().c_str());
+            // Let RenderDoc choose the Vulkan context and window handle since we typically only
+            // expect one of each.
+            renderdoc->StartFrameCapture(/*device=*/nullptr, /*wndHandle=*/nullptr);
+        }
+        else
+        {
+            GFXRECON_LOG_DEBUG("GetRenderDocApi failed! Could not start RenderDoc capture.");
+        }
+    }
 }
 
 void DiveVulkanReplayConsumer::ProcessFrameEndMarker(uint64_t frame_number)
@@ -756,6 +806,29 @@ void DiveVulkanReplayConsumer::ProcessFrameEndMarker(uint64_t frame_number)
                                              static_cast<uint32_t>(reset_fence_list.size()),
                                              reset_fence_list.data());
         GFXRECON_ASSERT(result == VK_SUCCESS);
+    }
+
+#if defined(__ANDROID__)
+    if (DivePM4Capture::GetInstance().IsPM4CaptureEnabled())
+    {
+        DivePM4Capture::GetInstance().TryStopCapture();
+    }
+#endif
+
+    if (ShouldCreateRenderDocCapture())
+    {
+        if (const RENDERDOC_API_1_0_0* renderdoc = GetRenderDocApi(); renderdoc != nullptr)
+        {
+            if (renderdoc->EndFrameCapture(/*device=*/nullptr, /*wndHandle=*/nullptr) != 1)
+            {
+                GFXRECON_LOG_WARNING(
+                "EndFrameCapture failed, RenderDoc .rdc capture likely not created!");
+            }
+        }
+        else
+        {
+            GFXRECON_LOG_WARNING("GetRenderDocApi failed. Could not end RenderDoc capture!");
+        }
     }
 }
 
