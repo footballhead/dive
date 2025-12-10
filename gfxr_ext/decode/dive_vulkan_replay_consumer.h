@@ -18,12 +18,14 @@ limitations under the License.
 #ifndef GFXRECON_DECODE_VULKAN_DIVE_CONSUMER_H
 #define GFXRECON_DECODE_VULKAN_DIVE_CONSUMER_H
 
+#include "decode/file_processor.h"
 #include "generated/generated_vulkan_replay_consumer.h"
 #include "gpu_time/gpu_time.h"
 #include <set>
 #include <vector>
 #include <unordered_map>
 #include <string>
+#include <cstdint>
 
 GFXRECON_BEGIN_NAMESPACE(gfxrecon)
 GFXRECON_BEGIN_NAMESPACE(decode)
@@ -33,6 +35,7 @@ class DiveVulkanReplayConsumer : public VulkanReplayConsumer
 public:
     DiveVulkanReplayConsumer(std::shared_ptr<application::Application> application,
                              std::string                               gfxr_file_name,
+                             FileProcessor&                            file_processor,
                              const VulkanReplayOptions&                options);
 
     ~DiveVulkanReplayConsumer() override;
@@ -247,8 +250,18 @@ private:
     // This is a flag that indicates if the Setup Phase is finised or not for gfx Replay
     // The Setup Phase is done when StateEndMarker is triggered
     bool setup_finished_ = false;
-    // Filename of the .GFXR capture file that FileProcessor is reading.
+    // Name of the capture file that initialized FileProcessor. This is likely the file given on the
+    // replay commandline, ending in .gfxr.
     std::string gfxr_file_name_;
+    // Non-owning reference. Primarily used for replay control (i.e. looping)
+    FileProcessor* file_processor_ = nullptr;
+    // The block index of the state end marker
+    uint64_t state_end_marker_block_index_{ 0 };
+    // Application will terminate after the single frame has been looped loop_single_frame_count_
+    // times. If 0, application will loop infinitely.
+    uint64_t loop_single_frame_count_{ 1 };
+    // Capture file offset of the marker that indicates the end of resources setup.
+    int64_t state_end_marker_file_offset_{ 0 };
 };
 
 GFXRECON_END_NAMESPACE(decode)

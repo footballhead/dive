@@ -18,8 +18,6 @@ limitations under the License.
 
 #include "dive_file_processor.h"
 
-#include <fstream>
-
 #include "util/logging.h"
 #include "util/platform.h"
 
@@ -27,16 +25,6 @@ limitations under the License.
 
 GFXRECON_BEGIN_NAMESPACE(gfxrecon)
 GFXRECON_BEGIN_NAMESPACE(decode)
-
-// TODO GH #1195: frame numbering should be 1-based.
-const uint32_t kFirstFrame = 0;
-
-void DiveFileProcessor::SetLoopSingleFrameCount(uint64_t loop_single_frame_count)
-{
-    loop_single_frame_count_ = loop_single_frame_count;
-    GFXRECON_LOG_INFO("Setting DiveFileProcessor::loop_single_frame_count_: %d",
-                      loop_single_frame_count);
-}
 
 void DiveFileProcessor::SetDiveBlockData(std::shared_ptr<DiveBlockData> p_block_data)
 {
@@ -74,91 +62,6 @@ bool DiveFileProcessor::WriteFile(const std::string& name, const std::string& co
     }
 
     return true;
-}
-
-bool DiveFileProcessor::ProcessFrameMarker(const format::BlockHeader& block_header,
-                                           format::MarkerType         marker_type,
-                                           bool&                      should_break)
-{
-    // Read the rest of the frame marker data. Currently frame markers are not dispatched to
-    // decoders.
-    uint64_t frame_number = 0;
-    bool     success = ReadBytes(&frame_number, sizeof(frame_number));
-
-    if (success)
-    {
-        // Validate frame end marker's frame number matches first_frame_ when
-        // capture_uses_frame_markers_ is true.
-        GFXRECON_ASSERT((marker_type != format::kEndMarker) || (!UsesFrameMarkers()) ||
-                        (frame_number == GetFirstFrame()));
-
-        for (auto decoder : decoders_)
-        {
-            if (marker_type == format::kEndMarker)
-            {
-                decoder->DispatchFrameEndMarker(frame_number);
-            }
-            else
-            {
-                GFXRECON_LOG_WARNING("Skipping unrecognized frame marker with type %u",
-                                     marker_type);
-            }
-        }
-    }
-    else
-    {
-        HandleBlockReadError(kErrorReadingBlockData, "Failed to read frame marker data");
-    }
-
-    // Break from loop on frame delimiter.
-    if (IsFrameDelimiter(block_header.type, marker_type))
-    {
-        // If the capture file contains frame markers, it will have a frame marker for every
-        // frame-ending API call such as vkQueuePresentKHR. If this is the first frame marker
-        // encountered, reset the frame count and ignore frame-ending API calls in
-        // IsFrameDelimiter(format::ApiCallId call_id).
-        if (!UsesFrameMarkers())
-        {
-            SetUsesFrameMarkers(true);
-            current_frame_number_ = kFirstFrame;
-        }
-
-        // Make sure to increment the frame number on the way out.
-        ++current_frame_number_;
-        ++block_index_;
-        should_break = true;
-
-        // At the last frame in the capture file, determine whether to jump back to the state end
-        // marker, or terminate replay if the loop count has been reached
-        if ((loop_single_frame_count_ > 0) && (current_frame_number_ >= loop_single_frame_count_))
-        {
-            GFXRECON_LOG_INFO("Looped %d frames, terminating replay asap", current_frame_number_);
-            return success;
-        }
-        GFXRECON_ASSERT(!gfxr_file_name_.empty());
-        block_index_ = state_end_marker_block_index_;
-        SeekActiveFile(gfxr_file_name_, state_end_marker_file_offset_, util::platform::FileSeekSet);
-        should_break = false;
-    }
-    return success;
-}
-
-bool DiveFileProcessor::ProcessStateMarker(const format::BlockHeader& block_header,
-                                           format::MarkerType         marker_type)
-{
-    bool success = FileProcessor::ProcessStateMarker(block_header, marker_type);
-
-    if ((success) && (marker_type == format::kEndMarker))
-    {
-        // Store state end marker offset
-        GFXRECON_ASSERT(!gfxr_file_name_.empty());
-        state_end_marker_file_offset_ = TellFile(gfxr_file_name_);
-        state_end_marker_block_index_ = block_index_;
-        GFXRECON_LOG_INFO("Stored state end marker offset %d", state_end_marker_file_offset_);
-        GFXRECON_LOG_INFO("Single frame number %d", GetFirstFrame());
-    }
-
-    return success;
 }
 
 void DiveFileProcessor::StoreBlockInfo()

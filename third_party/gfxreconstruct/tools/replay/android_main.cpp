@@ -154,25 +154,14 @@ void android_main(struct android_app* app)
                 gfxrecon::decode::VulkanReplayOptions          replay_options =
                     GetVulkanReplayOptions(arg_parser, filename, &tracked_object_info_table);
 
-                // GOOGLE: Pass replay options to DiveFileProcessor after initialization
-                if (use_dive_file_processor)
-                {
-                    auto* dive_file_processor =
-                        dynamic_cast<gfxrecon::decode::DiveFileProcessor*>(file_processor.get());
-                    GFXRECON_ASSERT(dive_file_processor)
-                    if (replay_options.loop_single_frame_count.has_value())
-                    {
-                        dive_file_processor->SetLoopSingleFrameCount(*(replay_options.loop_single_frame_count));
-                    }
-                }
-
                 file_processor->SetPrintBlockInfoFlag(replay_options.enable_print_block_info,
                                                       replay_options.block_index_from,
                                                       replay_options.block_index_to);
 
                 // GOOGLE: replace VulkanReplayConsumer with dive specific DiveVulkanReplayConsumer
-                gfxrecon::decode::DiveVulkanReplayConsumer vulkan_replay_consumer(application, filename, replay_options);
-                gfxrecon::decode::VulkanDecoder        vulkan_decoder;
+                gfxrecon::decode::DiveVulkanReplayConsumer vulkan_replay_consumer(
+                    application, filename, *file_processor, replay_options);
+                gfxrecon::decode::VulkanDecoder vulkan_decoder;
 
                 // GOOGLE: Pass replay options to enable/disable gpu time
                 if (arg_parser.IsOptionSet(kEnableGPUTime))

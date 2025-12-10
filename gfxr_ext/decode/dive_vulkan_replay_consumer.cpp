@@ -53,10 +53,18 @@ bool ShouldCreateRenderDocCapture()
 DiveVulkanReplayConsumer::DiveVulkanReplayConsumer(
 std::shared_ptr<application::Application> application,
 std::string                               gfxr_file_name,
+FileProcessor&                            file_processor,
 const VulkanReplayOptions&                options) :
     VulkanReplayConsumer(application, options),
-    gfxr_file_name_(std::move(gfxr_file_name))
+    gfxr_file_name_(std::move(gfxr_file_name)),
+    file_processor_(&file_processor)
 {
+    if (options.loop_single_frame_count.has_value())
+    {
+        loop_single_frame_count_ = *options.loop_single_frame_count;
+        GFXRECON_LOG_INFO("Setting DiveFileProcessor::loop_single_frame_count_: %d",
+                          loop_single_frame_count_);
+    }
 }
 
 DiveVulkanReplayConsumer::~DiveVulkanReplayConsumer() {}
@@ -768,6 +776,11 @@ void DiveVulkanReplayConsumer::ProcessStateEndMarker(uint64_t frame_number)
             GFXRECON_LOG_DEBUG("GetRenderDocApi failed! Could not start RenderDoc capture.");
         }
     }
+
+    state_end_marker_file_offset_ = file_processor_->TellFile(gfxr_file_name_);
+    state_end_marker_block_index_ = file_processor_->block_index_;
+    GFXRECON_LOG_INFO("Stored state end marker offset %d", state_end_marker_file_offset_);
+    GFXRECON_LOG_INFO("Single frame number %d", file_processor_->first_frame_);
 }
 
 void DiveVulkanReplayConsumer::ProcessFrameEndMarker(uint64_t frame_number)
@@ -815,20 +828,41 @@ void DiveVulkanReplayConsumer::ProcessFrameEndMarker(uint64_t frame_number)
     }
 #endif
 
-    if (ShouldCreateRenderDocCapture())
+    // At the last frame in the capture file, determine whether to jump back to the state end
+    // marker, or terminate replay if the loop count has been reached
+    bool is_infinite_loop = loop_single_frame_count_ == 0;
+    bool reached_loop_count = file_processor_->current_frame_number_ >= loop_single_frame_count_;
+    if (is_infinite_loop || !reached_loop_count)
     {
-        if (const RENDERDOC_API_1_0_0* renderdoc = GetRenderDocApi(); renderdoc != nullptr)
+        GFXRECON_ASSERT(!gfxr_file_name_.empty());
+        // Restoring block index to the loop point fixes --pbi-all output
+        file_processor_->block_index_ = state_end_marker_block_index_;
+        file_processor_->SeekActiveFile(gfxr_file_name_,
+                                        state_end_marker_file_offset_,
+                                        util::platform::FileSeekSet);
+    }
+    else
+    {
+        if (ShouldCreateRenderDocCapture())
         {
-            if (renderdoc->EndFrameCapture(/*device=*/nullptr, /*wndHandle=*/nullptr) != 1)
+            if (const RENDERDOC_API_1_0_0* renderdoc = GetRenderDocApi(); renderdoc != nullptr)
             {
-                GFXRECON_LOG_WARNING(
-                "EndFrameCapture failed, RenderDoc .rdc capture likely not created!");
+                if (renderdoc->EndFrameCapture(/*device=*/nullptr, /*wndHandle=*/nullptr) != 1)
+                {
+                    GFXRECON_LOG_WARNING(
+                    "EndFrameCapture failed, RenderDoc .rdc capture likely not created!");
+                }
+            }
+            else
+            {
+                GFXRECON_LOG_WARNING("GetRenderDocApi failed. Could not end RenderDoc capture!");
             }
         }
-        else
-        {
-            GFXRECON_LOG_WARNING("GetRenderDocApi failed. Could not end RenderDoc capture!");
-        }
+        GFXRECON_LOG_INFO("Looped %d frames, terminating replay asap",
+                          file_processor_->current_frame_number_);
+        // This does not actually terminate replay. The rest of the file will play until EOF. For
+        // Dive captures with only 1 frame, EOF should be right after the frame marker. We expect
+        // users to use Dive for captures.
     }
 }
 
