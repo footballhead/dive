@@ -557,12 +557,24 @@ absl::Status RetrieveGfxrCapture(Dive::DeviceManager& mgr, const GlobalOptions& 
     }
 
     std::cout << "Capture sucessfully saved at " << full_target_download_dir << std::endl;
+
+    // Removed the successfully pulled captures so that they are not pulled again and again and
+    // again.
+    const AdbSession& adb = mgr.GetDevice()->Adb();
+    for (const std::string& file : file_list)
+    {
+        RETURN_IF_ERROR(
+        adb.Run(absl::StrFormat("shell rm -- %s/%s", on_device_capture_directory, file)));
+    }
+
     return absl::OkStatus();
 }
 
 // Triggers a GFXR capture on the device, allowing for multiple captures and screenshot.
 absl::Status TriggerGfxrCapture(Dive::DeviceManager& mgr, const GlobalOptions& options)
 {
+    const AdbSession& adb = mgr.GetDevice()->Adb();
+
     std::cout
     << "Press key g+enter to trigger a capture and g+enter again to retrieve the capture. Press "
        "any other key+enter to stop the application. Note that this may impact your "
