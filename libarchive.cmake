@@ -19,9 +19,18 @@
 # Prebuilts are only offered for Windows
 if (NOT WIN32)
     add_subdirectory(third_party/libarchive)
+    # For consistency with Windows, use the FindLibArchive target name
     add_library(LibArchive::LibArchive ALIAS archive_static)
     return()
 endif()
 
+# Try prebuilt
 list(APPEND CMAKE_PREFIX_PATH "${PROJECT_SOURCE_DIR}/prebuild/libarchive")
-find_package(LibArchive REQUIRED)
+find_package(LibArchive QUIET)
+if (LibArchive_FOUND)
+    # Requirement specified by archive.h
+    target_compile_definitions(LibArchive::LibArchive INTERFACE LIBARCHIVE_STATIC)
+    return()
+endif()
+
+message(FATAL_ERROR "No LibArchive")
