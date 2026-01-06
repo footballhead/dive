@@ -137,7 +137,6 @@ target_include_directories(
         ${THIRDPARTY_DIRECTORY}/mesa/src/freedreno/common
         ${THIRDPARTY_DIRECTORY}/mesa/src/
         ${THIRDPARTY_DIRECTORY}/mesa/include/
-        ${THIRDPARTY_DIRECTORY}/libarchive/libarchive/
 )
 
 if(NOT MSVC AND NOT APPLE)
@@ -217,7 +216,7 @@ add_dependencies(${PROJECT_NAME} freedreno_devices_header)
 
 target_link_libraries(
     ${PROJECT_NAME}
-    PUBLIC dive_core_includes absl::no_destructor absl::strings
+    PUBLIC dive_core_includes absl::no_destructor absl::strings LibArchive::LibArchive
 )
 
 make_directory("${FREEDRENO_ISA_DIRECTORY}")
@@ -333,7 +332,6 @@ if(WIN32)
     # Supress warning about deprecation of std::iterator when compile with c++17
     add_definitions(-D_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING)
 endif() # WIN32
-target_link_libraries(${PROJECT_NAME} PRIVATE ${LibArchive_LIBRARIES})
 
 # This is needed in u_debug.h in mesa, which is included by shader_disassembly.cpp
 check_function_exists(secure_getenv HAVE_SECURE_GETENV)
@@ -341,7 +339,6 @@ if(HAVE_SECURE_GETENV)
     target_compile_definitions(${PROJECT_NAME} PRIVATE -DHAVE_SECURE_GETENV)
 endif() # HAVE_SECURE_GETENV
 
-include_directories(${LibArchive_INCLUDE_DIRS})
 if(MSVC)
     set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 11) # To support alignas
     set_source_files_properties(
