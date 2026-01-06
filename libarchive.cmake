@@ -22,3 +22,6 @@ if (NOT WIN32)
     add_library(LibArchive::LibArchive ALIAS archive_static)
     return()
 endif()
+
+list(APPEND CMAKE_PREFIX_PATH "${PROJECT_SOURCE_DIR}/prebuild/libarchive")
+find_package(LibArchive REQUIRED)
