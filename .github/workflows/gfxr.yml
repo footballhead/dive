@@ -1,0 +1,19 @@
+name: GFXR subtree pull
+
+on: workflow_dispatch
+
+jobs:
+  gfxr_subtree_pull:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - run: |
+          sudo apt update
+          sudo apt install -y --no-install-recommends \
+            cmake \
+            ninja-build \
+            python3-mako
+          python3 scripts/update_gfxr_subtree.py
