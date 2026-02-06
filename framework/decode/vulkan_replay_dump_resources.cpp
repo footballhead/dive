@@ -500,37 +500,15 @@ VulkanReplayDumpResourcesBase::FindTransferContext(VkCommandBuffer original_comm
     return nullptr;
 }
 
-void VulkanReplayDumpResourcesBase::ReleaseDrawCallContexts(decode::Index qs_index)
+template <typename MapOfContexts>
+void VulkanReplayDumpResourcesBase::ReleaseDumpingContexts(MapOfContexts contexts, decode::Index qs_index)
 {
-    for (const auto& [qs_bcb_pair, context] : draw_call_contexts_)
-    {
-        if (qs_bcb_pair.second == qs_index)
-        {
-            --active_contexts_;
-        }
-    }
-}
-
-void VulkanReplayDumpResourcesBase::ReleaseDispatchTraceRaysContexts(decode::Index qs_index)
-{
-    for (const auto& [qs_bcb_pair, context] : dispatch_ray_contexts_)
-    {
-        if (qs_bcb_pair.second == qs_index)
-        {
-            --active_contexts_;
-        }
-    }
-}
-
-void VulkanReplayDumpResourcesBase::ReleaseTransferContexts(decode::Index qs_index)
-{
-    for (const auto& [qs_bcb_pair, context] : transfer_contexts_)
-    {
-        if (qs_bcb_pair.second == qs_index)
-        {
-            --active_contexts_;
-        }
-    }
+    const auto count = std::erase_if(contexts, [qs_index](const auto& item) {
+        const auto& [bcb_qs_pair, context] = item;
+        return bcb_qs_pair.second == qs_index;
+    });
+    GFXRECON_ASSERT(count <= active_contexts_);
+    active_contexts_ -= count;
 }
 
 VkResult VulkanReplayDumpResourcesBase::BeginCommandBuffer(uint64_t                 bcb_index,
@@ -1919,7 +1897,7 @@ VkResult VulkanReplayDumpResourcesBase::QueueSubmit(const std::vector<VkSubmitIn
             return res;
         }
 
-        for (auto [bcb_qs_pair, transf_context] : transfer_contexts_)
+        for (auto& [bcb_qs_pair, transf_context] : transfer_contexts_)
         {
             if (bcb_qs_pair.second == index)
             {
@@ -1931,10 +1909,13 @@ VkResult VulkanReplayDumpResourcesBase::QueueSubmit(const std::vector<VkSubmitIn
                     RaiseFatalError(("Dumping transfer failed (" + util::ToString<VkResult>(res) + ")").c_str());
                     return res;
                 }
-
-                // Keep track of active contexts.
-                ReleaseTransferContexts(index);
             }
+        }
+
+        if (submitted)
+        {
+            // Keep track of active contexts.
+            ReleaseDumpingContexts(transfer_contexts_, index);
         }
     }
 
@@ -1965,7 +1946,7 @@ VkResult VulkanReplayDumpResourcesBase::QueueSubmit(const std::vector<VkSubmitIn
                 }
 
                 // Keep track of active contexts.
-                ReleaseDrawCallContexts(index);
+                ReleaseDumpingContexts(draw_call_contexts_, index);
 
                 submitted = true;
             }
@@ -1989,7 +1970,7 @@ VkResult VulkanReplayDumpResourcesBase::QueueSubmit(const std::vector<VkSubmitIn
                 }
 
                 // Keep track of active contexts.
-                ReleaseDispatchTraceRaysContexts(index);
+                ReleaseDumpingContexts(dispatch_ray_contexts_, index);
 
                 submitted = true;
             }
@@ -2208,7 +2189,8 @@ void VulkanReplayDumpResourcesBase::OverrideCmdExecuteCommands(const ApiCallInfo
 
         if (dc_primary_context->ShouldHandleExecuteCommands(call_info.index))
         {
-            uint32_t finalized_primaries = 0;
+            uint32_t                     finalized_primaries = 0;
+            std::vector<VkCommandBuffer> accumulated_secondaries_command_buffers;
             for (uint32_t i = 0; i < commandBufferCount; ++i)
             {
                 const std::vector<std::shared_ptr<DrawCallsDumpingContext>> dc_secondary_contexts =
@@ -2217,18 +2199,37 @@ void VulkanReplayDumpResourcesBase::OverrideCmdExecuteCommands(const ApiCallInfo
                 {
                     for (auto dc_secondary_context : dc_secondary_contexts)
                     {
-                        const std::vector<VkCommandBuffer>& secondarys_command_buffers =
+                        const std::vector<VkCommandBuffer>& secondaries_command_buffers =
                             dc_secondary_context->GetCommandBuffers();
-
-                        GFXRECON_ASSERT(secondarys_command_buffers.size() <=
+                        GFXRECON_ASSERT(secondaries_command_buffers.size() <=
                                         primary_last - (primary_first + finalized_primaries));
-                        for (size_t scb = 0; scb < secondarys_command_buffers.size(); ++scb)
+                        for (size_t scb = 0; scb < secondaries_command_buffers.size(); ++scb)
                         {
-                            func(*(primary_first + finalized_primaries), 1, &secondarys_command_buffers[scb]);
-                            dc_primary_context->FinalizeCommandBuffer();
+                            // Each primary should execute the command buffer from the previous
+                            // secondary contexts as well
+                            func(*(primary_first + finalized_primaries),
+                                 accumulated_secondaries_command_buffers.size(),
+                                 accumulated_secondaries_command_buffers.data());
+
+                            func(*(primary_first + finalized_primaries), 1, &secondaries_command_buffers[scb]);
                             dc_primary_context->MergeRenderPasses(*dc_secondary_context);
                             ++finalized_primaries;
                         }
+
+                        // Keep accumulating the command buffer from all secondary contexts
+                        accumulated_secondaries_command_buffers.insert(accumulated_secondaries_command_buffers.end(),
+                                                                       secondaries_command_buffers.begin(),
+                                                                       secondaries_command_buffers.end());
+
+                        // The other primaries need to execute this secondary as well
+                        for (CommandBufferIterator primary_it = (primary_first + finalized_primaries);
+                             primary_it < primary_last;
+                             ++primary_it)
+                        {
+                            func(*primary_it, 1, &pCommandBuffers[i]);
+                        }
+
+                        dc_primary_context->UpdateSecondaries(*dc_secondary_context.get());
 
                         // All primaries have been finalized. Nothing else to do
                         if (finalized_primaries == primary_last - primary_first)
@@ -2247,7 +2248,6 @@ void VulkanReplayDumpResourcesBase::OverrideCmdExecuteCommands(const ApiCallInfo
                     }
                 }
             }
-            dc_primary_context->UpdateSecondaries();
         }
         else
         {
@@ -3233,7 +3233,7 @@ void VulkanReplayDumpResourcesBase::ProcessStateEndMarker()
 
         // ProcessStateEndMarker marks the end of the state setup section. If a TransferDumpingContext was assigned to
         // dump transfer commands from there then now it becomes inactive.
-        ReleaseTransferContexts(0);
+        ReleaseDumpingContexts(transfer_contexts_, 0);
     }
 }
 

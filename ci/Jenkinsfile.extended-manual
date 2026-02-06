@@ -4,7 +4,7 @@ pipeline {
     parameters {
         string(
             name: 'PROJECT_REPO',
-            defaultValue: 'git@github.com:beau-lunarg/gfxreconstruct-pipeline-dev.git',
+            defaultValue: 'git@github.com:LunarG/gfxreconstruct.git',
             description: 'Project repository URL'
         )
         string(
@@ -58,7 +58,11 @@ pipeline {
                     def tests
 
                     node {
-                        checkout scm
+                        checkout([
+                            $class: 'GitSCM',
+                            branches: [[name: params.PROJECT_BRANCH]],
+                            userRemoteConfigs: [[url: params.PROJECT_REPO]]
+                        ])
                         def runJob = load 'ci/runJob.groovy'
 
                         tests = [
@@ -83,14 +87,14 @@ pipeline {
                                         params.TEST_BRANCH,
                                         params.TEST_SUITE_REPO,
                                         params.TEST_SUITE_BRANCH),
-                            'Windows AMD Rel64': runJob.gfxrTestWindowsManual('Windows AMD Rel64', runJob.WinAMDExtendedLabel, runJob.ReleaseMode, runJob.Bit64, params.TEST_SUITE,
+                            'Windows AMD Rel64': runJob.gfxrTestWindowsManual('Win AMD Rel64', runJob.WinAMDExtendedLabel, runJob.ReleaseMode, runJob.Bit64, params.TEST_SUITE,
                                         params.PROJECT_REPO,
                                         params.PROJECT_BRANCH,
                                         params.TEST_REPO,
                                         params.TEST_BRANCH,
                                         params.TEST_SUITE_REPO,
                                         params.TEST_SUITE_BRANCH),
-                            'Windows Nvidia Rel64': runJob.gfxrTestWindowsManual('Windows Nvidia Rel64', runJob.WinNvidiaExtendedLabel, runJob.ReleaseMode, runJob.Bit64, params.TEST_SUITE,
+                            'Windows Nvidia Rel64': runJob.gfxrTestWindowsManual('Win Nvidia Rel64', runJob.WinNvidiaExtendedLabel, runJob.ReleaseMode, runJob.Bit64, params.TEST_SUITE,
                                         params.PROJECT_REPO,
                                         params.PROJECT_BRANCH,
                                         params.TEST_REPO,
