@@ -44,11 +44,7 @@ const char kArguments[] =
     "force-windowed,--fwo|--force-windowed-origin,--batching-memory-usage,--measurement-file,--swapchain,--sgfs|--skip-"
     "get-fence-status,--sgfr|--skip-get-fence-ranges,--dump-resources,--dump-resources-dir,--dump-resources-image-"
     "format,pbis,--pcj|--pipeline-creation-jobs,--save-pipeline-cache,--load-pipeline-cache,--quit-after-frame,--"
-<<<<<<< HEAD
-    "present-mode,--loop-single-frame-count";
-=======
-    "present-mode,--wait-before-first-submit";
->>>>>>> b1cfd3bf0fa52e484a127e5f76c5176625700662
+    "present-mode,--wait-before-first-submit,--loop-single-frame-count";
 
 static void PrintUsage(const char* exe_name)
 {
