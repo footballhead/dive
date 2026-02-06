@@ -147,6 +147,7 @@ const char kSavePipelineCacheArgument[]           = "--save-pipeline-cache";
 const char kLoadPipelineCacheArgument[]           = "--load-pipeline-cache";
 const char kCreateNewPipelineCacheOption[]        = "--add-new-pipeline-caches";
 const char kDeduplicateDevice[]                   = "--deduplicate-device";
+const char kWaitBeforeFirstSubmit[]               = "--wait-before-first-submit";
 
 const char kScreenshotIgnoreFrameBoundaryArgument[] = "--screenshot-ignore-FrameBoundaryANDROID";
 
@@ -875,6 +876,7 @@ static std::vector<int32_t> GetFilteredMsgs(const gfxrecon::util::ArgumentParser
     return msgs;
 }
 
+<<<<<<< HEAD
 // GOOGLE: [single-frame-looping] Parse value for flag "--loop-single-frame-count"
 static std::optional<uint64_t> GetLoopSingleFrameCount(const gfxrecon::util::ArgumentParser& arg_parser)
 {
@@ -901,6 +903,25 @@ static std::optional<uint64_t> GetLoopSingleFrameCount(const gfxrecon::util::Arg
         return std::nullopt;
     }
     return n;
+=======
+static void GetWaitBeforeFirstSubmit(const gfxrecon::util::ArgumentParser& arg_parser,
+                                     uint32_t&                             wait_before_first_submit)
+{
+    const auto& value = arg_parser.GetArgumentValue(kWaitBeforeFirstSubmit);
+
+    if (!value.empty())
+    {
+        try
+        {
+            wait_before_first_submit = std::stoul(value);
+        }
+        catch (std::exception&)
+        {
+            GFXRECON_LOG_WARNING(
+                "Ignoring invalid wait before first submit option. Expected format is unsigned integer");
+        }
+    }
+>>>>>>> b1cfd3bf0fa52e484a127e5f76c5176625700662
 }
 
 static void GetReplayOptions(gfxrecon::decode::ReplayOptions&      options,
@@ -1250,6 +1271,7 @@ GetVulkanReplayOptions(const gfxrecon::util::ArgumentParser&           arg_parse
     replay_options.add_new_pipeline_caches      = arg_parser.IsOptionSet(kCreateNewPipelineCacheOption);
     replay_options.do_device_deduplication      = arg_parser.IsOptionSet(kDeduplicateDevice);
 
+<<<<<<< HEAD
     // GOOGLE: [enable-gpu-time] Parse additional parameters
     if (arg_parser.IsOptionSet(kEnableGPUTime))
     {
@@ -1265,6 +1287,9 @@ GetVulkanReplayOptions(const gfxrecon::util::ArgumentParser&           arg_parse
                            kLoopSingleFrameCount);
         abort();
     }
+=======
+    GetWaitBeforeFirstSubmit(arg_parser, replay_options.wait_before_first_submit);
+>>>>>>> b1cfd3bf0fa52e484a127e5f76c5176625700662
 
     return replay_options;
 }

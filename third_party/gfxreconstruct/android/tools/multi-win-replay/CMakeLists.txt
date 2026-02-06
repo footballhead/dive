@@ -50,7 +50,11 @@ target_link_libraries(
         gfxrecon_format
         platform_specific)
 
+<<<<<<< HEAD
 # GOOGLE: Add gfxr_decode_ext_lib
 target_link_libraries(gfxrecon-replay gfxr_decode_ext_lib)
+=======
+target_link_options(gfxrecon-replay PRIVATE "-Wl,-z,max-page-size=16384")
+>>>>>>> b1cfd3bf0fa52e484a127e5f76c5176625700662
 
 message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")

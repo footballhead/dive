@@ -166,11 +166,21 @@ struct VulkanReplayOptions : public ReplayOptions
     std::string save_pipeline_cache_filename;
     bool        add_new_pipeline_caches;
 
+<<<<<<< HEAD
     // GOOGLE: [single-frame-looping]
     std::optional<uint64_t> loop_single_frame_count = std::nullopt;
 
     // GOOGLE: [enable-gpu-time]
     bool enable_gpu_time;
+=======
+    // Time of instantiation of this struct.
+    std::chrono::high_resolution_clock::time_point start_time{ std::chrono::high_resolution_clock::now() };
+
+    // Milliseconds to wait before first queue submit.
+    uint32_t wait_before_first_submit{ 0 };
+
+    void MaybeWaitBeforeFirstSubmit() const;
+>>>>>>> b1cfd3bf0fa52e484a127e5f76c5176625700662
 };
 
 GFXRECON_END_NAMESPACE(decode)

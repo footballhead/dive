@@ -53,3 +53,5 @@ target_link_libraries(
         gfxrecon_format
         platform_specific
         project_version)
+
+target_link_options(gfxrecon-replay PRIVATE "-Wl,-z,max-page-size=16384")
